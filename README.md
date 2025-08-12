@@ -2,8 +2,8 @@
 
 A decentralized coin toss game built with Solidity smart contracts, a Node.js/Express backend, and a frontend using HTML and JavaScript. Players fund their accounts with USDT, purchase Game Tokens (GT), stake GT in matches, and play a coin toss to win the combined stake. The game uses Ethereum smart contracts for token management and match logic, with a frontend served on port 5000 and a backend on port 3000.
 
-![Demo Screenshot](images/demo.png)
-![Demo Screenshot 2](images/demo_2.png)
+![Demo Screenshot](images/Demo.png)
+![Demo Screenshot 2](images/Demo_2.png)
 
 ## Project Structure
 - `contracts/`: Solidity smart contracts (`GameToken.sol`, `TokenStore.sol`, `USDT.sol`, `PlayGame.sol`, `Lock.sol`).
