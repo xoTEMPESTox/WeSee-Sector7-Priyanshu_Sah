@@ -11,6 +11,7 @@ A decentralized coin toss game built with Solidity smart contracts, a Node.js/Ex
 - `scripts/`: Deployment script (`deploy.js`).
 - `api/`: Backend server (`index.js`).
 - `web/`: Frontend files (`index.html`, CSS, and JavaScript).
+- `tools/`: A dedicated Node.js service for the leaderboard (`leaderboard.js`).
 - `.env`: Environment variables for contract addresses and private keys.
 
 ## Prerequisites
@@ -19,6 +20,12 @@ A decentralized coin toss game built with Solidity smart contracts, a Node.js/Ex
 - **Ethereum Wallet**: A wallet with testnet ETH (e.g., for Hardhat's local network).
 - **Metamask** (optional): For interacting with the frontend if deployed on a testnet.
 - **Git**: For cloning the repository (if applicable).
+
+## Run:
+To run The Project simply use :
+```bash
+npm run start
+```
 
 ## Setup and Installation
 Follow these steps to set up and run the project locally.
