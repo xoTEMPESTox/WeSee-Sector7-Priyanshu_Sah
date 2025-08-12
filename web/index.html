@@ -1,61 +1,230 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TriX Game</title>
+    <title>Coin Toss Game</title>
+    <style>
+        body { font-family: Arial; text-align: center; }
+        .players { display: flex; justify-content: space-between; padding: 20px; }
+        .player { width: 30%; border: 1px solid #ccc; padding: 10px; }
+        .winner { background-color: lightgreen; }
+    </style>
 </head>
 <body>
-    <h1>TriX Game Portal</h1>
+    <h1>Coin Toss Game</h1>
+    <div class="players">
+        <div class="player" id="p1Box">
+            <h2>Player 1</h2>
+            <button onclick="fundPlayer('p1')">Fund P1 (USDT)</button>
+            <select id="p1Addr">
+            <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Player 1</option>
+            </select><br>
+            P1 USDT: <span id="p1USDT">0</span> | GT: <span id="p1GT">0</span><br>
+            <input id="p1BuyAmt" type="number" placeholder="Amount">
+            <button onclick="buyGT('p1')">Buy GT</button>
+        </div>
+        <div>
+            <h2>Bet Amount (GT)</h2>
+            <input id="betAmt" type="number" placeholder="Stake"><br><br>
+            <button onclick="playMatch()">Play Coin Toss</button>
+        </div>
+        <div class="player" id="p2Box">
+            <h2>Player 2</h2>
+            <button onclick="fundPlayer('p2')">Fund P2 (USDT)</button>
+            <select id="p2Addr">
+                <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Player 2</option>
+            </select><br>
 
-    <h2>Buy GT with USDT</h2>
-    <input id="usdtAmount" type="number" placeholder="USDT Amount">
-    <button onclick="buyGT()">Buy</button>
+            P2 USDT: <span id="p2USDT">0</span> | GT: <span id="p2GT">0</span><br>
+            <input id="p2BuyAmt" type="number" placeholder="Amount">
+            <button onclick="buyGT('p2')">Buy GT</button>
+        </div>
+    </div>
+    <h3>Escrow GT: <span id="escrowGT">0</span></h3>
+    <h3>Last Match Winner: <span id="lastWinner">-</span></h3>
 
-    <h2>Create/Stake Match</h2>
-    <input id="matchId" placeholder="Match ID">
-    <input id="p1" placeholder="Player 1 Address">
-    <input id="p2" placeholder="Player 2 Address">
-    <input id="stake" type="number" placeholder="Stake GT">
-    <button onclick="startMatch()">Start Match</button>
+<script>
+const API = 'http://localhost:3000';
+let CONFIG = null;
 
-    <h2>Submit Result</h2>
-    <input id="resMatchId" placeholder="Match ID">
-    <input id="winner" placeholder="Winner Address">
-    <button onclick="submitResult()">Submit Result</button>
+function setStatus(s) {
+  console.log('[UI]', s);
+  let el = document.getElementById('status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'status';
+    el.style.margin = '10px';
+    document.body.insertBefore(el, document.body.firstChild);
+  }
+  el.textContent = s;
+}
 
-    <pre id="output"></pre>
+async function loadConfig() {
+  try {
+    setStatus('Loading config...');
+    const res = await fetch(`${API}/config`);
+    CONFIG = await res.json();
+    console.log('[UI] config', CONFIG);
+    const p1 = document.getElementById('p1Addr');
+    const p2 = document.getElementById('p2Addr');
+    if (p1) p1.innerHTML = `<option value="${CONFIG.PLAYER1}">${CONFIG.PLAYER1}</option>`;
+    if (p2) p2.innerHTML = `<option value="${CONFIG.PLAYER2}">${CONFIG.PLAYER2}</option>`;
+    setStatus('Config loaded');
+  } catch (e) {
+    console.warn('Could not load config', e);
+    setStatus('Could not load config (backend?)');
+  }
+}
 
-    <script>
-        const API_URL = 'http://localhost:3000';
+async function buyGT(playerShort) {
+  try {
+    const inputId = playerShort === 'p1' ? 'p1BuyAmt' : 'p2BuyAmt';
+    const amt = document.getElementById(inputId).value;
+    if (!amt || Number(amt) <= 0) return alert('Enter numeric amount');
+    setStatus(`Buying ${amt} USDT -> GT for ${playerShort}`);
+    disableAll(true);
 
-        async function buyGT() {
-            const amount = document.getElementById('usdtAmount').value;
-            const res = await fetch(`${API_URL}/purchase?amount=${amount}`);
-            document.getElementById('output').textContent = JSON.stringify(await res.json(), null, 2);
-        }
+    const r = await fetch(`${API}/purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player: playerShort, amount: amt })
+    });
+    const data = await r.json();
+    console.log('[UI] purchase response', data);
+    setStatus('Purchase completed');
+  } catch (err) {
+    console.error('[UI] purchase error', err);
+    setStatus('Purchase error: ' + err.message);
+  } finally {
+    disableAll(false);
+    await updateBalances(); await updateEscrow();
+  }
+}
 
-        async function startMatch() {
-            const body = {
-                matchId: document.getElementById('matchId').value,
-                p1: document.getElementById('p1').value,
-                p2: document.getElementById('p2').value,
-                stake: document.getElementById('stake').value
-            };
-            const res = await fetch(`${API_URL}/match/start`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-            });
-            document.getElementById('output').textContent = JSON.stringify(await res.json(), null, 2);
-        }
+async function fundPlayer(playerShort) {
+  const amt = prompt('Amount USDT to fund', '100');
+  if (!amt) return;
+  setStatus(`Funding ${playerShort} with ${amt} USDT`);
+  disableAll(true);
+  try {
+    const r = await fetch(`${API}/fund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player: playerShort, amount: amt })
+    });
+    const data = await r.json();
+    console.log('[UI] fund response', data);
+    setStatus('Fund complete');
+  } catch (err) {
+    console.error('[UI] fund error', err);
+    setStatus('Fund error: ' + err.message);
+  } finally {
+    disableAll(false);
+    await updateBalances();
+  }
+}
 
-        async function submitResult() {
-            const body = {
-                matchId: document.getElementById('resMatchId').value,
-                winner: document.getElementById('winner').value
-            };
-            const res = await fetch(`${API_URL}/match/result`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-            });
-            document.getElementById('output').textContent = JSON.stringify(await res.json(), null, 2);
-        }
-    </script>
+function disableAll(dis) {
+  document.querySelectorAll('button,input').forEach(el => el.disabled = dis);
+}
+
+async function updateBalances() {
+  try {
+    const p1 = document.getElementById('p1Addr').value;
+    const p2 = document.getElementById('p2Addr').value;
+
+    if (p1) {
+      console.log('[UI] fetching balance', p1);
+      const res1 = await fetch(`${API}/balance/${p1}`);
+      const data1 = await res1.json();
+      console.log('[UI] balance p1', data1);
+      document.getElementById('p1USDT').textContent = data1.usdt;
+      document.getElementById('p1GT').textContent = data1.gt;
+    }
+
+    if (p2) {
+      console.log('[UI] fetching balance', p2);
+      const res2 = await fetch(`${API}/balance/${p2}`);
+      const data2 = await res2.json();
+      console.log('[UI] balance p2', data2);
+      document.getElementById('p2USDT').textContent = data2.usdt;
+      document.getElementById('p2GT').textContent = data2.gt;
+    }
+  } catch (err) {
+    console.error('[UI] updateBalances error', err);
+    setStatus('Error fetching balances');
+  }
+}
+
+async function updateEscrow() {
+  try {
+    const res = await fetch(`${API}/escrow-balance`);
+    const data = await res.json();
+    console.log('[UI] escrow', data);
+    document.getElementById('escrowGT').textContent = data.escrowGT;
+  } catch (err) {
+    console.error('[UI] updateEscrow error', err);
+  }
+}
+
+async function playMatch() {
+  const stake = document.getElementById('betAmt').value;
+  if (!stake || Number(stake) <= 0) return alert('Enter stake > 0');
+
+  setStatus('Starting match...');
+  disableAll(true);
+
+  const matchId = Date.now().toString();
+
+  try {
+    console.log('[UI] creating match', matchId, stake);
+    await fetch(`${API}/match/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId, stake })
+    });
+
+    setStatus('Match started, settling...');
+    const res = await fetch(`${API}/match/play`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId })
+    });
+    const data = await res.json();
+    console.log('[UI] match/play response', data);
+    document.getElementById('lastWinner').textContent = shorten(data.winner || '-');
+    highlightWinner(data.winner);
+
+    setStatus('Match complete. Winner: ' + shorten(data.winner));
+  } catch (err) {
+    console.error('[UI] playMatch error', err);
+    setStatus('Play error: ' + err.message);
+  } finally {
+    disableAll(false);
+    await updateBalances(); await updateEscrow();
+  }
+}
+
+function shorten(addr) {
+  if (!addr) return '-';
+  return addr.slice(0,6) + '...' + addr.slice(-4);
+}
+
+function highlightWinner(addr) {
+  const p1Box = document.getElementById('p1Box');
+  const p2Box = document.getElementById('p2Box');
+  p1Box.classList.remove('winner'); p2Box.classList.remove('winner');
+  if (!addr) return;
+  const p1 = document.getElementById('p1Addr').value.toLowerCase();
+  const p2 = document.getElementById('p2Addr').value.toLowerCase();
+  if (addr.toLowerCase() === p1) p1Box.classList.add('winner');
+  if (addr.toLowerCase() === p2) p2Box.classList.add('winner');
+}
+
+// initialize
+loadConfig().then(() => {
+  updateBalances();
+  updateEscrow();
+  setInterval(() => { updateBalances(); updateEscrow(); }, 2000);
+  setStatus('Ready');
+});
+</script>
 </body>
 </html>
