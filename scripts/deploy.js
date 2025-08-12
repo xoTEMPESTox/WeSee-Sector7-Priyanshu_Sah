@@ -3,8 +3,10 @@ require("dotenv").config();
 const fs = require("fs");
 
 async function main() {
-    const [deployer] = await ethers.getSigners();
+    const [deployer, player1, player2] = await ethers.getSigners();
     console.log("Deploying with:", deployer.address);
+    console.log("Player 1:", player1.address);
+    console.log("Player 2:", player2.address);
 
     // 1️⃣ Deploy USDT mock
     const USDT = await ethers.getContractFactory("USDT");
@@ -34,18 +36,18 @@ async function main() {
     const PlayGame = await ethers.getContractFactory("PlayGame");
     const playGame = await PlayGame.deploy(
         await gameToken.getAddress(),
-        process.env.PUBLIC_KEY // operator
+        deployer.address // operator is the deployer account
     );
     await playGame.waitForDeployment();
     console.log("PlayGame:", await playGame.getAddress());
 
     // 5️⃣ Fund player1 & player2 with USDT
-    await usdt.transfer(process.env.PUBLIC_KEY_P1, ethers.parseUnits("100", 6));
-    await usdt.transfer(process.env.PUBLIC_KEY_P2, ethers.parseUnits("100", 6));
+    await usdt.transfer(player1.address, ethers.parseUnits("100", 6));
+    await usdt.transfer(player2.address, ethers.parseUnits("100", 6));
 
     console.log("Funded players with 100 USDT each");
 
-    // 6️⃣ Save deployed addresses to .env
+    // 6️⃣ Save deployed addresses and accounts to .env
     const addresses = {
         USDT_ADDRESS: await usdt.getAddress(),
         GAMETOKEN_ADDRESS: await gameToken.getAddress(),
@@ -53,12 +55,19 @@ async function main() {
         PLAYGAME_ADDRESS: await playGame.getAddress(),
     };
 
-    // Read the current .env file content
+    const accounts = {
+        PUBLIC_KEY: deployer.address, // Operator/deployer
+        PUBLIC_KEY_P1: player1.address,
+        PUBLIC_KEY_P2: player2.address
+    };
+
+    // Read or create the .env file with base config
     let envContent = '';
     try {
         envContent = fs.readFileSync(".env", "utf-8");
     } catch (error) {
         console.warn(".env file not found, creating a new one.");
+        envContent = `# RPC\nRPC_URL=http://127.0.0.1:8545\n\nLEADERBOARD_PORT=4000\nFRONTEND_PORT=5000\nBACKEND_PORT=3000\n\n# Operator / Escrow account (Account #0)\nPUBLIC_KEY=\nPRIVATE_KEY=\n\n# Player 1 (Account #1)\nPUBLIC_KEY_P1=\nPRIVATE_KEY_P1=\n\n# Player 2 (Account #2)\nPUBLIC_KEY_P2=\nPRIVATE_KEY_P2=\n\n# Contract addresses (to be filled after deploy)\n`;
     }
     
     // Check and overwrite or append each address
@@ -71,9 +80,32 @@ async function main() {
             newEnvContent += `\n${key}=${value}`;
         }
     }
+    for (const [key, value] of Object.entries(accounts)) {
+        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (newEnvContent.match(regex)) {
+            newEnvContent = newEnvContent.replace(regex, `${key}=${value}`);
+        } else {
+            newEnvContent += `\n${key}=${value}`;
+        }
+    }
     
+    // Preserve existing PRIVATE_KEY values if present, otherwise leave blank
+    const privateKeys = {
+        PRIVATE_KEY: process.env.PRIVATE_KEY || '',
+        PRIVATE_KEY_P1: process.env.PRIVATE_KEY_P1 || '',
+        PRIVATE_KEY_P2: process.env.PRIVATE_KEY_P2 || ''
+    };
+    for (const [key, value] of Object.entries(privateKeys)) {
+        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (newEnvContent.match(regex)) {
+            newEnvContent = newEnvContent.replace(regex, `${key}=${value}`);
+        } else {
+            newEnvContent += `\n${key}=${value}`;
+        }
+    }
+
     fs.writeFileSync(".env", newEnvContent.trim() + "\n");
-    console.log("Updated .env with deployed addresses");
+    console.log("Updated .env with deployed addresses and accounts");
 }
 
 main().catch((error) => {

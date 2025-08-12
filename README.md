@@ -4,6 +4,7 @@ A decentralized coin toss game built with Solidity smart contracts, a Node.js/Ex
 
 ![Demo Screenshot](images/Demo.png)
 ![Demo Screenshot 2](images/Demo_2.png)
+![Demo Screenshot 3](images/Demo_3.png)
 
 ## Project Structure
 - `contracts/`: Solidity smart contracts (`GameToken.sol`, `TokenStore.sol`, `USDT.sol`, `PlayGame.sol`, `Lock.sol`).
@@ -25,7 +26,7 @@ Follow these steps to set up and run the project locally.
 ### 1. Clone the Repository (if applicable)
 ```bash
 git clone https://github.com/xoTEMPESTox/WeSee-Sector7-Priyanshu_Sah
-cd coin-toss-game
+cd WeSee-Sector7-Priyanshu_Sah
 ```
 
 ### 2. Install Node Modules

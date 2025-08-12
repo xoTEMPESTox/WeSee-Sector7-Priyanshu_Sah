@@ -75,7 +75,7 @@
             margin: 20px 0;
         }
 
-        .player, .game-controls {
+        .player, .game-controls, .leaderboard {
             background-color: var(--card-color);
             border-radius: 15px;
             padding: 25px;
@@ -95,6 +95,12 @@
             align-self: center;
         }
         
+        .leaderboard {
+            width: 90%;
+            width: 100%;
+            margin-top: 20px;
+        }
+
         .player-info {
             margin: 15px 0;
             font-size: 0.9rem;
@@ -239,6 +245,33 @@
             bottom: 30px;
         }
 
+        /* --- Leaderboard Styles --- */
+        .leaderboard h2 {
+            margin-bottom: 15px;
+        }
+
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .leaderboard-table th,
+        .leaderboard-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .leaderboard-table th {
+            background-color: #33335a;
+            font-weight: 600;
+        }
+
+        .leaderboard-table tr:hover {
+            background-color: #404060;
+        }
+
         /* --- Responsive Design --- */
         @media (max-width: 900px) {
             .players {
@@ -252,6 +285,9 @@
             .game-controls {
                 padding: 25px;
             }
+            .leaderboard {
+                width: 100%;
+            }
             h1 { font-size: 2rem; }
         }
     </style>
@@ -263,8 +299,8 @@
         <div class="players">
             <div class="player" id="p1Box">
                 <h2>Player 1 <i class="fas fa-crown" style="font-size: 0.8em; vertical-align: middle;"></i></h2>
-                 <button onclick="fundPlayer('p1')"><i class="fas fa-wallet"></i>Fund P1 (USDT)</button>
-                 <select id="p1Addr" enabled></select>
+                <button onclick="fundPlayer('p1')"><i class="fas fa-wallet"></i>Fund P1 (USDT)</button>
+                <select id="p1Addr" enabled></select>
                 <div class="player-info">
                     USDT: <span id="p1USDT">0</span> | GT: <span id="p1GT">0</span>
                 </div>
@@ -276,8 +312,8 @@
                 <h2>Game Stake</h2>
                 <input id="betAmt" type="number" placeholder="Enter Bet Amount (GT)">
                 <button onclick="playMatch()"><i class="fas fa-coins"></i>Play Coin Toss</button>
-                 <h3>Escrow GT: <span id="escrowGT">0</span></h3>
-                 <h3>Last Winner: <span id="lastWinner">-</span></h3>
+                <h3>Escrow GT: <span id="escrowGT">0</span></h3>
+                <h3>Last Winner: <span id="lastWinner">-</span></h3>
             </div>
 
             <div class="player" id="p2Box">
@@ -290,6 +326,22 @@
                 <input id="p2BuyAmt" type="number" placeholder="USDT amount to spend">
                 <button onclick="buyGT('p2')"><i class="fas fa-shopping-cart"></i>Buy Game Tokens</button>
             </div>
+        </div>
+
+        <div class="leaderboard">
+            <h2>Leaderboard</h2>
+            <table class="leaderboard-table" id="leaderboardTable">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Address</th>
+                        <th>Wins</th>
+                        <th>Total GT Won</th>
+                        <th>Matches Played</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
         </div>
     </div>
 
@@ -304,6 +356,7 @@
 
 <script>
 const API = 'http://localhost:3000';
+const LEADERBOARD_API = 'http://localhost:4000';
 let CONFIG = null;
 let statusTimeout;
 
@@ -358,6 +411,7 @@ async function buyGT(playerShort) {
         disableAll(false);
         await updateBalances();
         await updateEscrow();
+        await updateLeaderboard();
     }
 }
 
@@ -382,6 +436,7 @@ async function fundPlayer(playerShort) {
     } finally {
         disableAll(false);
         await updateBalances();
+        await updateLeaderboard();
     }
 }
 
@@ -417,6 +472,28 @@ async function updateEscrow() {
         document.getElementById('escrowGT').textContent = parseFloat(data.escrowGT).toFixed(2);
     } catch (err) {
         console.error('[UI] updateEscrow error', err);
+    }
+}
+
+async function updateLeaderboard() {
+    try {
+        const res = await fetch(`${LEADERBOARD_API}/leaderboard`);
+        const data = await res.json();
+        const tbody = document.getElementById('leaderboardBody');
+        tbody.innerHTML = ''; // Clear existing rows
+        data.forEach((entry, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${shorten(entry.address)}</td>
+                <td>${entry.wins}</td>
+                <td>${entry.totalGTWon}</td>
+                <td>${entry.matchesPlayed}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (err) {
+        console.error('[UI] updateLeaderboard error', err);
     }
 }
 
@@ -481,6 +558,7 @@ async function playMatch() {
         disableAll(false);
         await updateBalances();
         await updateEscrow();
+        await updateLeaderboard();
     }
 }
 
@@ -504,10 +582,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConfig().then(() => {
         updateBalances();
         updateEscrow();
+        updateLeaderboard();
         setInterval(() => {
             updateBalances();
             updateEscrow();
-        }, 5000); // Polling less frequently is fine
+            updateLeaderboard();
+        }, 5000); // Polling every 5 seconds
         setStatus('Ready to Play!', 4000);
     });
 });
