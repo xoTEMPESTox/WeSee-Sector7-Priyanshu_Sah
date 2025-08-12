@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TriX Game</title>
+</head>
+<body>
+    <h1>TriX Game Portal</h1>
+
+    <h2>Buy GT with USDT</h2>
+    <input id="usdtAmount" type="number" placeholder="USDT Amount">
+    <button onclick="buyGT()">Buy</button>
+
+    <h2>Create/Stake Match</h2>
+    <input id="matchId" placeholder="Match ID">
+    <input id="p1" placeholder="Player 1 Address">
+    <input id="p2" placeholder="Player 2 Address">
+    <input id="stake" type="number" placeholder="Stake GT">
+    <button onclick="startMatch()">Start Match</button>
+
+    <h2>Submit Result</h2>
+    <input id="resMatchId" placeholder="Match ID">
+    <input id="winner" placeholder="Winner Address">
+    <button onclick="submitResult()">Submit Result</button>
+
+    <pre id="output"></pre>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+
+        async function buyGT() {
+            const amount = document.getElementById('usdtAmount').value;
+            const res = await fetch(`${API_URL}/purchase?amount=${amount}`);
+            document.getElementById('output').textContent = JSON.stringify(await res.json(), null, 2);
+        }
+
+        async function startMatch() {
+            const body = {
+                matchId: document.getElementById('matchId').value,
+                p1: document.getElementById('p1').value,
+                p2: document.getElementById('p2').value,
+                stake: document.getElementById('stake').value
+            };
+            const res = await fetch(`${API_URL}/match/start`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            document.getElementById('output').textContent = JSON.stringify(await res.json(), null, 2);
+        }
+
+        async function submitResult() {
+            const body = {
+                matchId: document.getElementById('resMatchId').value,
+                winner: document.getElementById('winner').value
+            };
+            const res = await fetch(`${API_URL}/match/result`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            document.getElementById('output').textContent = JSON.stringify(await res.json(), null, 2);
+        }
+    </script>
+</body>
+</html>
