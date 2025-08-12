@@ -1,229 +1,515 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Coin Toss Game</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin Toss Game - High Stakes</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
     <style>
-        body { font-family: Arial; text-align: center; }
-        .players { display: flex; justify-content: space-between; padding: 20px; }
-        .player { width: 30%; border: 1px solid #ccc; padding: 10px; }
-        .winner { background-color: lightgreen; }
+        /* --- General & Root Styles --- */
+        :root {
+            --bg-color: #1a1a2e;
+            --card-color: #2a2a4e;
+            --primary-accent: #00a8ff;
+            --primary-accent-dark: #007ab8;
+            --text-color: #e0e0e0;
+            --border-color: #404060;
+            --winner-glow: #00ffaa;
+            --font-family: 'Poppins', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            text-align: center;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* --- Typography & Main Container --- */
+        h1 {
+            font-size: 2.5rem;
+            color: var(--primary-accent);
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px var(--primary-accent);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            border-bottom: 2px solid var(--primary-accent);
+            padding-bottom: 5px;
+        }
+        
+        h3 {
+            margin-top: 20px;
+            font-weight: 400;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* --- Player & Game Controls Layout --- */
+        .players {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .player, .game-controls {
+            background-color: var(--card-color);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .player {
+            width: 35%;
+        }
+        
+        .game-controls {
+            width: 25%;
+            padding-top: 50px;
+            padding-bottom: 50px;
+            align-self: center;
+        }
+        
+        .player-info {
+            margin: 15px 0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .player-info span {
+            font-weight: 600;
+            color: var(--primary-accent);
+        }
+
+        /* --- Buttons & Inputs --- */
+        button, input, select {
+            font-family: var(--font-family);
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: #33335a;
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+        
+        input::placeholder {
+            color: #888;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-accent);
+            box-shadow: 0 0 8px var(--primary-accent);
+        }
+
+        button {
+            background-color: var(--primary-accent);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: var(--primary-accent-dark);
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: translateY(0);
+        }
+        
+        button i {
+            margin-right: 8px;
+        }
+
+        /* --- Winner Highlight --- */
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px var(--winner-glow); }
+            50% { box-shadow: 0 0 25px var(--winner-glow); }
+            100% { box-shadow: 0 0 5px var(--winner-glow); }
+        }
+
+        .winner {
+            border-color: var(--winner-glow);
+            animation: glow 2s infinite ease-in-out;
+        }
+
+        /* --- Coin Toss Animation --- */
+        .coin-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .coin {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            transform-style: preserve-3d;
+        }
+
+        .coin.flipping {
+            animation: flip 3s ease-out forwards;
+        }
+        
+        .coin .front, .coin .back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5rem;
+            color: var(--bg-color);
+        }
+
+        .coin .front { /* Heads - Player 1 */
+            background: linear-gradient(45deg, #ffd700, #f0c000);
+            z-index: 2;
+        }
+
+        .coin .back { /* Tails - Player 2 */
+            background: linear-gradient(45deg, #c0c0c0, #a0a0a0);
+            transform: rotateY(180deg);
+            z-index: 1;
+        }
+
+        @keyframes flip {
+            from { transform: rotateY(0deg); }
+            to { transform: rotateY(1980deg); /* Multiple spins */ }
+        }
+
+        /* --- Status Toast --- */
+        .status-toast {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--primary-accent);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 2000;
+            transition: bottom 0.5s ease;
+            font-weight: 600;
+        }
+
+        .status-toast.show {
+            bottom: 30px;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 900px) {
+            .players {
+                flex-direction: column;
+                align-items: center;
+            }
+            .player, .game-controls {
+                width: 90%;
+                max-width: 500px;
+            }
+            .game-controls {
+                padding: 25px;
+            }
+            h1 { font-size: 2rem; }
+        }
     </style>
 </head>
 <body>
-    <h1>Coin Toss Game</h1>
-    <div class="players">
-        <div class="player" id="p1Box">
-            <h2>Player 1</h2>
-            <button onclick="fundPlayer('p1')">Fund P1 (USDT)</button>
-            <select id="p1Addr">
-            <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Player 1</option>
-            </select><br>
-            P1 USDT: <span id="p1USDT">0</span> | GT: <span id="p1GT">0</span><br>
-            <input id="p1BuyAmt" type="number" placeholder="Amount">
-            <button onclick="buyGT('p1')">Buy GT</button>
-        </div>
-        <div>
-            <h2>Bet Amount (GT)</h2>
-            <input id="betAmt" type="number" placeholder="Stake"><br><br>
-            <button onclick="playMatch()">Play Coin Toss</button>
-        </div>
-        <div class="player" id="p2Box">
-            <h2>Player 2</h2>
-            <button onclick="fundPlayer('p2')">Fund P2 (USDT)</button>
-            <select id="p2Addr">
-                <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Player 2</option>
-            </select><br>
+    <div class="container">
+        <h1>Coin Toss Game</h1>
 
-            P2 USDT: <span id="p2USDT">0</span> | GT: <span id="p2GT">0</span><br>
-            <input id="p2BuyAmt" type="number" placeholder="Amount">
-            <button onclick="buyGT('p2')">Buy GT</button>
+        <div class="players">
+            <div class="player" id="p1Box">
+                <h2>Player 1 <i class="fas fa-crown" style="font-size: 0.8em; vertical-align: middle;"></i></h2>
+                 <button onclick="fundPlayer('p1')"><i class="fas fa-wallet"></i>Fund P1 (USDT)</button>
+                 <select id="p1Addr" enabled></select>
+                <div class="player-info">
+                    USDT: <span id="p1USDT">0</span> | GT: <span id="p1GT">0</span>
+                </div>
+                <input id="p1BuyAmt" type="number" placeholder="USDT amount to spend">
+                <button onclick="buyGT('p1')"><i class="fas fa-shopping-cart"></i>Buy Game Tokens</button>
+            </div>
+
+            <div class="game-controls">
+                <h2>Game Stake</h2>
+                <input id="betAmt" type="number" placeholder="Enter Bet Amount (GT)">
+                <button onclick="playMatch()"><i class="fas fa-coins"></i>Play Coin Toss</button>
+                 <h3>Escrow GT: <span id="escrowGT">0</span></h3>
+                 <h3>Last Winner: <span id="lastWinner">-</span></h3>
+            </div>
+
+            <div class="player" id="p2Box">
+                <h2>Player 2 <i class="fas fa-shield-alt" style="font-size: 0.8em; vertical-align: middle;"></i></h2>
+                <button onclick="fundPlayer('p2')"><i class="fas fa-wallet"></i>Fund P2 (USDT)</button>
+                <select id="p2Addr" enabled></select>
+                <div class="player-info">
+                    USDT: <span id="p2USDT">0</span> | GT: <span id="p2GT">0</span>
+                </div>
+                <input id="p2BuyAmt" type="number" placeholder="USDT amount to spend">
+                <button onclick="buyGT('p2')"><i class="fas fa-shopping-cart"></i>Buy Game Tokens</button>
+            </div>
         </div>
     </div>
-    <h3>Escrow GT: <span id="escrowGT">0</span></h3>
-    <h3>Last Match Winner: <span id="lastWinner">-</span></h3>
+
+    <div class="coin-overlay" id="coinOverlay">
+      <div class="coin" id="coin">
+          <div class="front"><i class="fas fa-shield-alt"></i></div>
+          <div class="back"><i class="fas fa-crown"></i></div>
+      </div>
+    </div>
+
+    <div id="statusToast" class="status-toast"></div>
 
 <script>
 const API = 'http://localhost:3000';
 let CONFIG = null;
+let statusTimeout;
 
-function setStatus(s) {
-  console.log('[UI]', s);
-  let el = document.getElementById('status');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'status';
-    el.style.margin = '10px';
-    document.body.insertBefore(el, document.body.firstChild);
-  }
-  el.textContent = s;
+function setStatus(s, duration = 3000) {
+    console.log('[UI]', s);
+    const el = document.getElementById('statusToast');
+    el.textContent = s;
+    el.classList.add('show');
+
+    clearTimeout(statusTimeout); // Clear previous timeout if a new status comes in
+    statusTimeout = setTimeout(() => {
+        el.classList.remove('show');
+    }, duration);
 }
 
 async function loadConfig() {
-  try {
-    setStatus('Loading config...');
-    const res = await fetch(`${API}/config`);
-    CONFIG = await res.json();
-    console.log('[UI] config', CONFIG);
-    const p1 = document.getElementById('p1Addr');
-    const p2 = document.getElementById('p2Addr');
-    if (p1) p1.innerHTML = `<option value="${CONFIG.PLAYER1}">${CONFIG.PLAYER1}</option>`;
-    if (p2) p2.innerHTML = `<option value="${CONFIG.PLAYER2}">${CONFIG.PLAYER2}</option>`;
-    setStatus('Config loaded');
-  } catch (e) {
-    console.warn('Could not load config', e);
-    setStatus('Could not load config (backend?)');
-  }
+    try {
+        setStatus('Loading config...', 2000);
+        const res = await fetch(`${API}/config`);
+        CONFIG = await res.json();
+        console.log('[UI] config', CONFIG);
+        document.getElementById('p1Addr').innerHTML = `<option value="${CONFIG.PLAYER1}">${shorten(CONFIG.PLAYER1)}</option>`;
+        document.getElementById('p2Addr').innerHTML = `<option value="${CONFIG.PLAYER2}">${shorten(CONFIG.PLAYER2)}</option>`;
+    } catch (e) {
+        console.warn('Could not load config', e);
+        setStatus('Error: Could not load config. Is the backend running?', 5000);
+    }
 }
 
 async function buyGT(playerShort) {
-  try {
-    const inputId = playerShort === 'p1' ? 'p1BuyAmt' : 'p2BuyAmt';
-    const amt = document.getElementById(inputId).value;
-    if (!amt || Number(amt) <= 0) return alert('Enter numeric amount');
-    setStatus(`Buying ${amt} USDT -> GT for ${playerShort}`);
-    disableAll(true);
+    try {
+        const inputId = playerShort === 'p1' ? 'p1BuyAmt' : 'p2BuyAmt';
+        const amt = document.getElementById(inputId).value;
+        if (!amt || Number(amt) <= 0) return setStatus('Please enter a valid amount.');
+        setStatus(`Purchasing GT for ${playerShort}...`);
+        disableAll(true);
 
-    const r = await fetch(`${API}/purchase`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ player: playerShort, amount: amt })
-    });
-    const data = await r.json();
-    console.log('[UI] purchase response', data);
-    setStatus('Purchase completed');
-  } catch (err) {
-    console.error('[UI] purchase error', err);
-    setStatus('Purchase error: ' + err.message);
-  } finally {
-    disableAll(false);
-    await updateBalances(); await updateEscrow();
-  }
+        const r = await fetch(`${API}/purchase`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player: playerShort, amount: amt })
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        console.log('[UI] purchase response', data);
+        setStatus('Purchase complete!');
+        document.getElementById(inputId).value = '';
+    } catch (err) {
+        console.error('[UI] purchase error', err);
+        setStatus('Purchase error: ' + err.message, 5000);
+    } finally {
+        disableAll(false);
+        await updateBalances();
+        await updateEscrow();
+    }
 }
 
 async function fundPlayer(playerShort) {
-  const amt = prompt('Amount USDT to fund', '100');
-  if (!amt) return;
-  setStatus(`Funding ${playerShort} with ${amt} USDT`);
-  disableAll(true);
-  try {
-    const r = await fetch(`${API}/fund`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ player: playerShort, amount: amt })
-    });
-    const data = await r.json();
-    console.log('[UI] fund response', data);
-    setStatus('Fund complete');
-  } catch (err) {
-    console.error('[UI] fund error', err);
-    setStatus('Fund error: ' + err.message);
-  } finally {
-    disableAll(false);
-    await updateBalances();
-  }
+    const amt = prompt('Amount USDT to fund', '100');
+    if (!amt || Number(amt) <= 0) return;
+    setStatus(`Funding ${playerShort} with ${amt} USDT...`);
+    disableAll(true);
+    try {
+        const r = await fetch(`${API}/fund`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player: playerShort, amount: amt })
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        console.log('[UI] fund response', data);
+        setStatus('Funding complete!');
+    } catch (err) {
+        console.error('[UI] fund error', err);
+        setStatus('Fund error: ' + err.message, 5000);
+    } finally {
+        disableAll(false);
+        await updateBalances();
+    }
 }
 
 function disableAll(dis) {
-  document.querySelectorAll('button,input').forEach(el => el.disabled = dis);
+    document.querySelectorAll('button,input').forEach(el => el.disabled = dis);
 }
 
 async function updateBalances() {
-  try {
-    const p1 = document.getElementById('p1Addr').value;
-    const p2 = document.getElementById('p2Addr').value;
+    if (!CONFIG) return;
+    try {
+        const p1 = CONFIG.PLAYER1;
+        const p2 = CONFIG.PLAYER2;
 
-    if (p1) {
-      console.log('[UI] fetching balance', p1);
-      const res1 = await fetch(`${API}/balance/${p1}`);
-      const data1 = await res1.json();
-      console.log('[UI] balance p1', data1);
-      document.getElementById('p1USDT').textContent = data1.usdt;
-      document.getElementById('p1GT').textContent = data1.gt;
-    }
+        const res1 = await fetch(`${API}/balance/${p1}`);
+        const data1 = await res1.json();
+        document.getElementById('p1USDT').textContent = parseFloat(data1.usdt).toFixed(2);
+        document.getElementById('p1GT').textContent = parseFloat(data1.gt).toFixed(2);
 
-    if (p2) {
-      console.log('[UI] fetching balance', p2);
-      const res2 = await fetch(`${API}/balance/${p2}`);
-      const data2 = await res2.json();
-      console.log('[UI] balance p2', data2);
-      document.getElementById('p2USDT').textContent = data2.usdt;
-      document.getElementById('p2GT').textContent = data2.gt;
+        const res2 = await fetch(`${API}/balance/${p2}`);
+        const data2 = await res2.json();
+        document.getElementById('p2USDT').textContent = parseFloat(data2.usdt).toFixed(2);
+        document.getElementById('p2GT').textContent = parseFloat(data2.gt).toFixed(2);
+
+    } catch (err) {
+        console.error('[UI] updateBalances error', err);
     }
-  } catch (err) {
-    console.error('[UI] updateBalances error', err);
-    setStatus('Error fetching balances');
-  }
 }
 
 async function updateEscrow() {
-  try {
-    const res = await fetch(`${API}/escrow-balance`);
-    const data = await res.json();
-    console.log('[UI] escrow', data);
-    document.getElementById('escrowGT').textContent = data.escrowGT;
-  } catch (err) {
-    console.error('[UI] updateEscrow error', err);
-  }
+    try {
+        const res = await fetch(`${API}/escrow-balance`);
+        const data = await res.json();
+        document.getElementById('escrowGT').textContent = parseFloat(data.escrowGT).toFixed(2);
+    } catch (err) {
+        console.error('[UI] updateEscrow error', err);
+    }
 }
 
 async function playMatch() {
-  const stake = document.getElementById('betAmt').value;
-  if (!stake || Number(stake) <= 0) return alert('Enter stake > 0');
+    const stake = document.getElementById('betAmt').value;
+    if (!stake || Number(stake) <= 0) return setStatus('Please enter a stake greater than 0.');
 
-  setStatus('Starting match...');
-  disableAll(true);
+    setStatus('Starting match...');
+    disableAll(true);
 
-  const matchId = Date.now().toString();
+    const matchId = Date.now().toString();
+    const coinOverlay = document.getElementById('coinOverlay');
+    const coin = document.getElementById('coin');
 
-  try {
-    console.log('[UI] creating match', matchId, stake);
-    await fetch(`${API}/match/start`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchId, stake })
-    });
+    try {
+        setStatus('Both players are staking...');
+        const startRes = await fetch(`${API}/match/start`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matchId, stake })
+        });
+        const startData = await startRes.json();
+        if (startData.error) throw new Error(startData.error);
+        await updateBalances();
+        await updateEscrow();
+        
+        // --- Start Coin Animation ---
+        setStatus('Flipping the coin...');
+        coinOverlay.style.display = 'flex';
+        coin.style.transform = 'rotateY(0deg)'; // Reset coin
+        coin.classList.add('flipping');
+        
+        // Wait for flip animation before getting result
+        await new Promise(resolve => setTimeout(resolve, 2800));
 
-    setStatus('Match started, settling...');
-    const res = await fetch(`${API}/match/play`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchId })
-    });
-    const data = await res.json();
-    console.log('[UI] match/play response', data);
-    document.getElementById('lastWinner').textContent = shorten(data.winner || '-');
-    highlightWinner(data.winner);
+        const playRes = await fetch(`${API}/match/play`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matchId })
+        });
+        const playData = await playRes.json();
+        if (playData.error) throw new Error(playData.error);
 
-    setStatus('Match complete. Winner: ' + shorten(data.winner));
-  } catch (err) {
-    console.error('[UI] playMatch error', err);
-    setStatus('Play error: ' + err.message);
-  } finally {
-    disableAll(false);
-    await updateBalances(); await updateEscrow();
-  }
+        console.log('[UI] match/play response', playData);
+        
+        // --- Land on the correct side ---
+        const finalRotation = playData.winner.toLowerCase() === CONFIG.PLAYER1.toLowerCase() ? 1980 : 1980 + 180;
+        coin.style.transform = `rotateY(${finalRotation}deg)`;
+        coin.classList.remove('flipping');
+        
+        document.getElementById('lastWinner').textContent = shorten(playData.winner || '-');
+        highlightWinner(playData.winner);
+        setStatus('Match complete! Winner: ' + shorten(playData.winner), 5000);
+        
+        // Hide overlay after showing the result
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        coinOverlay.style.display = 'none';
+        
+    } catch (err) {
+        console.error('[UI] playMatch error', err);
+        setStatus('Play error: ' + err.message, 5000);
+        coinOverlay.style.display = 'none'; // Hide overlay on error
+    } finally {
+        disableAll(false);
+        await updateBalances();
+        await updateEscrow();
+    }
 }
 
 function shorten(addr) {
-  if (!addr) return '-';
-  return addr.slice(0,6) + '...' + addr.slice(-4);
+    if (!addr) return '-';
+    return addr.slice(0, 6) + '...' + addr.slice(-4);
 }
 
 function highlightWinner(addr) {
-  const p1Box = document.getElementById('p1Box');
-  const p2Box = document.getElementById('p2Box');
-  p1Box.classList.remove('winner'); p2Box.classList.remove('winner');
-  if (!addr) return;
-  const p1 = document.getElementById('p1Addr').value.toLowerCase();
-  const p2 = document.getElementById('p2Addr').value.toLowerCase();
-  if (addr.toLowerCase() === p1) p1Box.classList.add('winner');
-  if (addr.toLowerCase() === p2) p2Box.classList.add('winner');
+    const p1Box = document.getElementById('p1Box');
+    const p2Box = document.getElementById('p2Box');
+    p1Box.classList.remove('winner');
+    p2Box.classList.remove('winner');
+    if (!addr || !CONFIG) return;
+    if (addr.toLowerCase() === CONFIG.PLAYER1.toLowerCase()) p1Box.classList.add('winner');
+    if (addr.toLowerCase() === CONFIG.PLAYER2.toLowerCase()) p2Box.classList.add('winner');
 }
 
-// initialize
-loadConfig().then(() => {
-  updateBalances();
-  updateEscrow();
-  setInterval(() => { updateBalances(); updateEscrow(); }, 2000);
-  setStatus('Ready');
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadConfig().then(() => {
+        updateBalances();
+        updateEscrow();
+        setInterval(() => {
+            updateBalances();
+            updateEscrow();
+        }, 5000); // Polling less frequently is fine
+        setStatus('Ready to Play!', 4000);
+    });
 });
 </script>
 </body>
