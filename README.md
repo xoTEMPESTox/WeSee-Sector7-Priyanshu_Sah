@@ -28,13 +28,26 @@ npm run start
 ```
 
 ## Setup and Installation
-Follow these steps to set up and run the project locally.
+Follow these steps to set up and run the project locally. 
 
 ### 1. Clone the Repository (if applicable)
 ```bash
 git clone https://github.com/xoTEMPESTox/WeSee-Sector7-Priyanshu_Sah
 cd WeSee-Sector7-Priyanshu_Sah
 ```
+
+### 1.5. Instal Node Modules
+Install project dependencies,env, including Hardhat and its toolbox Automatically
+```bash
+npm install
+```
+To run The Project simply use :
+```bash
+npm run start
+```
+
+### To debug Node Issues try:
+To setup env and other packages Manually follow this in case of Errors
 
 ### 2. Install Node Modules
 Install project dependencies, including Hardhat and its toolbox.
