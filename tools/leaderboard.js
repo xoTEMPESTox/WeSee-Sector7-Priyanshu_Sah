@@ -27,10 +27,10 @@ const tokenStoreAbi = [
   "event Purchase(address indexed buyer, uint256 usdtAmount, uint256 gtOut)"
 ];
 const playGameAbi = [
-  "event MatchCreated(bytes32 indexed matchId, address p1, address p2, uint256 stake)",
-  "event Staked(bytes32 indexed matchId, address player)",
-  "event Settled(bytes32 indexed matchId, address winner, uint256 amount)",
-  "event Refunded(bytes32 indexed matchId)"
+  "event MatchCreated(bytes32 indexed matchId, address p1, address p2, uint256 amountStake)",
+  "event PlayerStaked(bytes32 indexed matchId, address player, uint256 amountStake)",
+  "event MatchSettled(bytes32 indexed matchId, address winner, uint256 payout)",
+  "event MatchRefunded(bytes32 indexed matchId)"
 ];
 
 // Initialize contracts
@@ -117,19 +117,18 @@ tokenStore.on('Purchase', (buyer, usdtAmount, gtOut, event) => {
     // No leaderboard update needed for Purchase, but logged for monitoring
 });
 
-playGame.on('Staked', (matchId, player, event) => {
-    console.log(`[EVENT] Staked: matchId=${matchId}, player=${player}, block=${event.blockNumber}`);
+playGame.on('PlayerStaked', (matchId, player, amountStake, event) => {
+    console.log(`[EVENT] PlayerStaked: matchId=${matchId}, player=${player}, amountStake=${amountStake}, block=${event.blockNumber}`);
     updateLeaderboard(player, { matchesPlayed: 1 });
 });
 
-playGame.on('Settled', (matchId, winner, amount, event) => {
-    console.log(`[EVENT] Settled: matchId=${matchId}, winner=${winner}, amount=${amount}, block=${event.blockNumber}`);
-    updateLeaderboard(winner, { wins: 1, totalGTWon: amount.toString() });
+playGame.on('MatchSettled', (matchId, winner, payout, event) => {
+    console.log(`[EVENT] MatchSettled: matchId=${matchId}, winner=${winner}, payout=${payout}, block=${event.blockNumber}`);
+    updateLeaderboard(winner, { wins: 1, totalGTWon: payout.toString() });
 });
 
-playGame.on('Refunded', (matchId, event) => {
-    console.log(`[EVENT] Refunded: matchId=${matchId}, block=${event.blockNumber}`);
-    // No leaderboard update needed for Refunded, but logged for monitoring
+playGame.on('MatchRefunded', (matchId, event) => {
+    console.log(`[EVENT] MatchRefunded: matchId=${matchId}, block=${event.blockNumber}`);
 });
 
 // GET /leaderboard endpoint

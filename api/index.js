@@ -51,8 +51,13 @@ const tokenStoreAbi = [
 const playGameAbi = [
   "function createMatch(bytes32 matchId, address p1, address p2, uint256 stake) external",
   "function stake(bytes32 matchId) external",
-  "function commitResult(bytes32 matchId, address winner) external"
+  "function commitResult(bytes32 matchId, address winner) external",
+  "event MatchCreated(bytes32 indexed matchId, address p1, address p2, uint256 amountStake)",
+  "event PlayerStaked(bytes32 indexed matchId, address player, uint256 amountStake)",
+  "event MatchSettled(bytes32 indexed matchId, address winner, uint256 payout)",
+  "event MatchRefunded(bytes32 indexed matchId)"
 ];
+
 
 /* Contracts (read-only provider) */
 const usdt = new ethers.Contract(process.env.USDT_ADDRESS, usdtAbi, provider);
