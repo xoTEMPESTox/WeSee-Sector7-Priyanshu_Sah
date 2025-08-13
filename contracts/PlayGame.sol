@@ -14,7 +14,7 @@ contract PlayGame is Ownable, ReentrancyGuard {
     struct Match {
         address p1;
         address p2;
-        uint256 stake;
+        uint256 amountStake; // clearly differentiated from function/event parameters
         MatchStatus status;
         uint256 startTime;
     }
@@ -22,20 +22,22 @@ contract PlayGame is Ownable, ReentrancyGuard {
     mapping(bytes32 => Match) public matches;
     mapping(bytes32 => mapping(address => bool)) public hasStaked;
 
-    event MatchCreated(bytes32 indexed matchId, address p1, address p2, uint256 stake);
-    event Staked(bytes32 indexed matchId, address player);
-    event Settled(bytes32 indexed matchId, address winner, uint256 amount);
-    event Refunded(bytes32 indexed matchId);
+    // Events use explicit names to avoid confusion
+    event MatchCreated(bytes32 indexed matchId, address p1, address p2, uint256 amountStake);
+    event PlayerStaked(bytes32 indexed matchId, address player, uint256 amountStake);
+    event MatchSettled(bytes32 indexed matchId, address winner, uint256 payout);
+    event MatchRefunded(bytes32 indexed matchId);
 
     constructor(address _gameToken, address _operator) Ownable(msg.sender) {
         gameToken = IERC20(_gameToken);
         operator = _operator;
     }
 
-    function createMatch(bytes32 matchId, address p1, address p2, uint256 stake) external onlyOwner {
+    // createMatch parameter renamed to matchStake for clarity
+    function createMatch(bytes32 matchId, address p1, address p2, uint256 matchStake) external onlyOwner {
         require(matches[matchId].status == MatchStatus.NONE, "Match exists");
-        matches[matchId] = Match(p1, p2, stake, MatchStatus.CREATED, 0);
-        emit MatchCreated(matchId, p1, p2, stake);
+        matches[matchId] = Match(p1, p2, matchStake, MatchStatus.CREATED, 0);
+        emit MatchCreated(matchId, p1, p2, matchStake);
     }
 
     function stake(bytes32 matchId) external nonReentrant {
@@ -44,14 +46,14 @@ contract PlayGame is Ownable, ReentrancyGuard {
         require(msg.sender == m.p1 || msg.sender == m.p2, "Not a player");
         require(!hasStaked[matchId][msg.sender], "Already staked");
 
-        require(gameToken.transferFrom(msg.sender, address(this), m.stake), "GT transfer failed");
+        require(gameToken.transferFrom(msg.sender, address(this), m.amountStake), "GT transfer failed");
         hasStaked[matchId][msg.sender] = true;
 
         if (hasStaked[matchId][m.p1] && hasStaked[matchId][m.p2]) {
             m.status = MatchStatus.STAKED;
             m.startTime = block.timestamp;
         }
-        emit Staked(matchId, msg.sender);
+        emit PlayerStaked(matchId, msg.sender, m.amountStake);
     }
 
     function commitResult(bytes32 matchId, address winner) external nonReentrant {
@@ -60,11 +62,11 @@ contract PlayGame is Ownable, ReentrancyGuard {
         require(m.status == MatchStatus.STAKED, "Not ready");
         require(winner == m.p1 || winner == m.p2, "Invalid winner");
 
-        uint256 payout = m.stake * 2;
+        uint256 payout = m.amountStake * 2;
         require(gameToken.transfer(winner, payout), "GT payout failed");
 
         m.status = MatchStatus.SETTLED;
-        emit Settled(matchId, winner, payout);
+        emit MatchSettled(matchId, winner, payout);
     }
 
     function refund(bytes32 matchId) external nonReentrant {
@@ -73,12 +75,12 @@ contract PlayGame is Ownable, ReentrancyGuard {
         require(block.timestamp > m.startTime + 1 days, "Too early");
 
         if (hasStaked[matchId][m.p1]) {
-            gameToken.transfer(m.p1, m.stake);
+            gameToken.transfer(m.p1, m.amountStake);
         }
         if (hasStaked[matchId][m.p2]) {
-            gameToken.transfer(m.p2, m.stake);
+            gameToken.transfer(m.p2, m.amountStake);
         }
         m.status = MatchStatus.REFUNDED;
-        emit Refunded(matchId);
+        emit MatchRefunded(matchId);
     }
 }
