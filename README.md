@@ -34,6 +34,7 @@ git clone https://github.com/xoTEMPESTox/WeSee-Sector7-Priyanshu_Sah
 cd WeSee-Sector7-Priyanshu_Sah 
 npm install 
 npm run start 
+ 
 ```
 Or Manually Below
 
