@@ -1,8 +1,25 @@
 const { ethers } = require("hardhat");
 require("dotenv").config();
 const fs = require("fs");
+const path = require("path");
 
 async function main() {
+    const envPath = path.resolve(".env");
+    const exampleEnvPath = path.resolve(".env.example");
+
+    // 1️⃣ Ensure .env exists
+    if (!fs.existsSync(envPath)) {
+        if (fs.existsSync(exampleEnvPath)) {
+            fs.copyFileSync(exampleEnvPath, envPath);
+            console.log(".env not found, created from .env.example");
+        } else {
+            console.warn(".env.example not found, creating minimal .env");
+            fs.writeFileSync(envPath, `# Default .env\nRPC_URL=http://127.0.0.1:8545\n`);
+        }
+    }
+
+    // Reload dotenv after potential creation
+    require("dotenv").config({ path: envPath });
     const [deployer, player1, player2] = await ethers.getSigners();
     console.log("Deploying with:", deployer.address);
     console.log("Player 1:", player1.address);
