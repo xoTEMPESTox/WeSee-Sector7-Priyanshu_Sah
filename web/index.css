@@ -57,8 +57,8 @@
             font-size: 3rem;
             color: var(--primary-accent);
             margin-bottom: 20px;
-            text-shadow: 0 0 15px var(--primary-accent), 0 0 30px var(--primary-accent);
-            animation: neon-glow 2s infinite alternate;
+            text-shadow: 0 0 5px var(--primary-accent), 0 0 15px var(--primary-accent);
+            animation: neon-glow 1s infinite alternate;
         }
 
         @keyframes neon-glow {
