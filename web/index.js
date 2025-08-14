@@ -7,6 +7,19 @@ let prevBalances = { p1USDT: 0, p1GT: 0, p2USDT: 0, p2GT: 0 };
 let prevLeaderboard = [];
 
 
+let player1Address = null;
+let player2Address = null;
+// Ethers provider
+let provider = null;
+
+let connectedWallets = {
+    p1: null,
+    p2: null,
+};
+
+
+
+
 
 function setStatus(s, duration = 3000, type = 'info') {
     console.log('[UI]', s);
@@ -41,23 +54,60 @@ function updateSliderValue(id, value) {
     document.getElementById(id).textContent = value;
 }
 
+// Your `buyGT` function
 async function buyGT(playerShort) {
     try {
         const inputId = playerShort === 'p1' ? 'p1BuyAmt' : 'p2BuyAmt';
         const amt = document.getElementById(inputId).value;
         if (!amt || Number(amt) <= 0) return setStatus('Please select a valid amount.', 3000, 'error');
-        setStatus(`Purchasing GT for ${playerShort}...`);
-        disableAll(true);
 
-        const r = await fetch(`${API}/purchase`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player: playerShort, amount: amt })
-        });
-        const data = await r.json();
-        if (data.error) throw new Error(data.error);
-        console.log('[UI] purchase response', data);
-        setStatus('Purchase complete!', 3000, 'success');
+        // Check if a wallet is connected for the selected player
+        const playerAddr = playerShort === 'p1' ? player1Address : player2Address;
+
+        if (playerAddr) {
+            // MetaMask transaction flow
+            if (!provider) throw new Error("No provider available. Please connect your wallet first.");
+
+            const signer = provider.getSigner();
+            const usdtAmt = ethers.utils.parseUnits(amt.toString(), 6);
+
+            setStatus(`Requesting approval for ${usdtAmt} USDT...`);
+            disableAll(true);
+
+            // Get contract instances using the signer
+            const usdtContract = new ethers.Contract(CONFIG.USDT_ADDRESS, [
+                "function approve(address spender, uint256 amount) external returns (bool)"
+            ], signer);
+            const tokenStoreContract = new ethers.Contract(CONFIG.TOKENSTORE_ADDRESS, [
+                "function buy(uint256 usdtAmount) external"
+            ], signer);
+
+            // 1. Approve the TokenStore contract
+            const approveTx = await usdtContract.approve(CONFIG.TOKENSTORE_ADDRESS, usdtAmt);
+            await approveTx.wait();
+            setStatus('Approval successful. Requesting purchase transaction...');
+
+            // 2. Buy Game Tokens
+            const buyTx = await tokenStoreContract.buy(usdtAmt);
+            await buyTx.wait();
+            
+            setStatus('Purchase complete!', 3000, 'success');
+        } else {
+            // Existing backend transaction flow
+            setStatus(`Purchasing GT for ${playerShort} via backend...`);
+            disableAll(true);
+
+            const r = await fetch(`${API}/purchase`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player: playerShort, amount: amt })
+            });
+            const data = await r.json();
+            if (data.error) throw new Error(data.error);
+            console.log('[UI] purchase response', data);
+            setStatus('Purchase complete!', 3000, 'success');
+        }
+
         document.getElementById(inputId).value = 0;
         updateSliderValue(`${inputId}Value`, 0);
     } catch (err) {
@@ -346,6 +396,74 @@ function confettiBurst(boxId) {
     }
 
     animateConfetti();
+}
+
+async function promptAddGTToken() {
+    try {
+        if (!window.ethereum) {
+            console.error("MetaMask is not installed.");
+            return;
+        }
+
+        const tokenAddress = CONFIG.GAMETOKEN_ADDRESS; // Your GT contract address from config
+        const tokenSymbol = 'GT'; // The token's symbol
+        const tokenDecimals = 18; // The token's decimals (for ERC20, usually 18)
+
+        const wasAdded = await window.ethereum.request({
+            method: 'wallet_watchAsset',
+            params: {
+                type: 'ERC20',
+                options: {
+                    address: tokenAddress,
+                    symbol: tokenSymbol,
+                    decimals: tokenDecimals,
+                },
+            },
+        });
+
+        if (wasAdded) {
+            console.log('GT token was added to MetaMask!');
+        } else {
+            console.log('GT token was not added.');
+        }
+    } catch (error) {
+        console.error('Failed to add GT token to MetaMask:', error);
+    }
+}
+
+// Function to connect a player's wallet
+async function connectWallet(playerShort) {
+    try {
+        if (!window.ethereum) {
+            setStatus('MetaMask is not installed. Please install it to connect.', 5000, 'error');
+            return;
+        }
+
+        // Request accounts
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const address = accounts[0];
+
+        // Store the address and update UI
+        if (playerShort === 'p1') {
+            player1Address = address;
+            document.getElementById('p1Addr').innerHTML = `<option value="${address}">${shorten(address)}</option>`;
+        } else if (playerShort === 'p2') {
+            player2Address = address;
+            document.getElementById('p2Addr').innerHTML = `<option value="${address}">${shorten(address)}</option>`;
+        }
+        
+        // Create an ethers.js provider
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+
+        setStatus(`Player ${playerShort} connected: ${shorten(address)}`, 3000, 'success');
+        updateBalances(true);
+        updateLeaderboard(true);
+        // After successful connection, prompt the user to add the token
+        promptAddGTToken();
+    } catch (error) {
+        console.error('Failed to connect wallet:', error);
+        setStatus('Failed to connect wallet.', 5000, 'error');
+    }
 }
 
 // Initialize on page load
