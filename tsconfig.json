@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES6",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    "strict": false,
+    "noUncheckedIndexedAccess": true,
+
+    "module": "ESNext",
+    "outDir": "dist",
+    "sourceMap": true,
+
+    "lib": ["es6", "dom", "dom.iterable"],
+  }
+}
