@@ -5,6 +5,7 @@ A decentralized coin toss game built with Solidity smart contracts, a Node.js/Ex
 ![Demo Screenshot](images/Demo.png)
 ![Demo Screenshot 2](images/Demo_2.png)
 ![Demo Screenshot 3](images/Demo_3.png)
+Deployment: [Vercel](https://we-see-sector7-priyanshu-sah.vercel.app)
 
 ## Project Structure
 - `contracts/`: Solidity smart contracts (`GameToken.sol`, `TokenStore.sol`, `USDT.sol`, `PlayGame.sol`, `Lock.sol`).
