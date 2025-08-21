@@ -1,168 +1,341 @@
 # Coin Toss Game
 
-A decentralized coin toss game built with Solidity smart contracts, a Node.js/Express backend, and a frontend using HTML and JavaScript. Players fund their accounts with USDT, purchase Game Tokens (GT), stake GT in matches, and play a coin toss to win the combined stake. The game uses Ethereum smart contracts for token management and match logic, with a frontend served on port 5000 and a backend on port 3000.
+A decentralized coin toss game built with Solidity smart contracts, a Node.js/Express backend, and a frontend using HTML and JavaScript. Players fund their accounts with USDT, purchase Game Tokens (GT), stake GT in matches, and play a coin toss to win the combined stake. The game uses Ethereum smart contracts for token management and match logic.
 
 ![Demo Screenshot](images/Demo.png)
 ![Demo Screenshot 2](images/Demo_2.png)
 ![Demo Screenshot 3](images/Demo_3.png)
 
+## Table of Contents
+1. [Project Overview](#project-overview)
+2. [Project Structure](#project-structure)
+3. [Smart Contracts](#smart-contracts)
+4. [Game Flow](#game-flow)
+5. [Key Code Snippets](#key-code-snippets)
+6. [Live Demo Sequence](#live-demo-sequence)
+7. [Prerequisites](#prerequisites)
+8. [Setup and Installation](#setup-and-installation)
+9. [Running the Application](#running-the-application)
+10. [Troubleshooting](#troubleshooting)
+
+## Project Overview
+
+The Coin Toss Game is a decentralized application that allows two players to compete in a coin toss game where each player stakes Game Tokens (GT). The winner takes both stakes, creating an exciting and fair gaming experience powered by blockchain technology.
+
 ## Project Structure
-- `contracts/`: Solidity smart contracts (`GameToken.sol`, `TokenStore.sol`, `USDT.sol`, `PlayGame.sol`, `Lock.sol`).
-- `scripts/`: Deployment script (`deploy.js`).
-- `api/`: Backend server (`index.js`).
-- `web/`: Frontend files (`index.html`, CSS, and JavaScript).
-- `tools/`: A dedicated Node.js service for the leaderboard (`leaderboard.js`).
-- `.env`: Environment variables for contract addresses and private keys.
+
+- `contracts/`: Solidity smart contracts
+  - `GameToken.sol`: Represents the Game Token (GT) used for staking in matches
+  - `TokenStore.sol`: Contract for buying GT with USDT
+  - `USDT.sol`: Mock USDT token for testing purposes
+  - `PlayGame.sol`: Core game logic for creating, staking, and settling matches
+  - `Lock.sol`: Time-locked withdrawal contract (not used in current implementation)
+- `scripts/`: Deployment scripts
+  - `deploy.js`: Script to deploy all smart contracts and configure the environment
+- `api/`: Backend server
+  - `index.js`: Main backend server file with API endpoints for game operations
+- `web/`: Frontend files
+  - `index.html`, CSS, JavaScript: The user interface for playing the game
+- `tools/`: Utility services
+  - `leaderboard.db`: SQLite database for tracking player statistics
+  - `leaderboard.js`: Node.js service for managing and serving leaderboard data
+- `.env`: Environment variables for contract addresses and private keys
+
+## Smart Contracts
+
+### Game Flow Overview
+
+1. Players fund their accounts with USDT
+2. Players buy Game Tokens (GT) using the TokenStore contract
+3. Players create a match in PlayGame with a stake amount
+4. Both players approve and stake GT to the match
+5. The game randomly selects a winner, who receives both stakes
+
+### Key Contract: `PlayGame.sol`
+
+```solidity
+// PlayGame.sol - Core game logic for creating, staking, and settling matches
+contract PlayGame is Ownable, ReentrancyGuard {
+    IERC20 public gameToken;
+    address public operator;
+
+    enum MatchStatus { NONE, CREATED, STAKED, SETTLED, REFUNDED }
+
+    struct Match {
+        address p1;
+        address p2;
+        uint256 amountStake; // clearly differentiated from function/event parameters
+        MatchStatus status;
+        uint256 startTime;
+    }
+
+    mapping(bytes32 => Match) public matches;
+    mapping(bytes32 => mapping(address => bool)) public hasStaked;
+
+    event MatchCreated(bytes32 indexed matchId, address p1, address p2, uint256 amountStake);
+    event PlayerStaked(bytes32 indexed matchId, address player, uint256 amountStake);
+    event MatchSettled(bytes32 indexed matchId, address winner, uint256 payout);
+    event MatchRefunded(bytes32 indexed matchId);
+
+    constructor(address _gameToken, address _operator) Ownable(msg.sender) {
+        gameToken = IERC20(_gameToken);
+        operator = _operator;
+    }
+
+    function createMatch(bytes32 matchId, address p1, address p2, uint256 matchStake) external onlyOwner {
+        require(matches[matchId].status == MatchStatus.NONE, "Match exists");
+        matches[matchId] = Match(p1, p2, matchStake, MatchStatus.CREATED, 0);
+        emit MatchCreated(matchId, p1, p2, matchStake);
+    }
+
+    function stake(bytes32 matchId) external nonReentrant {
+        Match storage m = matches[matchId];
+        require(m.status == MatchStatus.CREATED || m.status == MatchStatus.STAKED, "Invalid status");
+        require(msg.sender == m.p1 || msg.sender == m.p2, "Not a player");
+        require(!hasStaked[matchId][msg.sender], "Already staked");
+
+        require(gameToken.transferFrom(msg.sender, address(this), m.amountStake), "GT transfer failed");
+        hasStaked[matchId][msg.sender] = true;
+
+        if (hasStaked[matchId][m.p1] && hasStaked[matchId][m.p2]) {
+            m.status = MatchStatus.STAKED;
+            m.startTime = block.timestamp;
+        }
+        emit PlayerStaked(matchId, msg.sender, m.amountStake);
+    }
+
+    function commitResult(bytes32 matchId, address winner) external nonReentrant {
+        Match storage m = matches[matchId];
+        require(msg.sender == operator, "Not operator");
+        require(m.status == MatchStatus.STAKED, "Not ready");
+        require(winner == m.p1 || winner == m.p2, "Invalid winner");
+
+        uint256 payout = m.amountStake * 2;
+        require(gameToken.transfer(winner, payout), "GT payout failed");
+
+        m.status = MatchStatus.SETTLED;
+        emit MatchSettled(matchId, winner, payout);
+    }
+
+    function refund(bytes32 matchId) external nonReentrant {
+        Match storage m = matches[matchId];
+        require(m.status == MatchStatus.CREATED || m.status == MatchStatus.STAKED, "Not refundable");
+        require(block.timestamp > m.startTime + 1 days, "Too early");
+
+        if (hasStaked[matchId][m.p1]) {
+            gameToken.transfer(m.p1, m.amountStake);
+        }
+        if (hasStaked[matchId][m.p2]) {
+            gameToken.transfer(m.p2, m.amountStake);
+        }
+        m.status = MatchStatus.REFUNDED;
+        emit MatchRefunded(matchId);
+    }
+}
+```
+
+## Game Flow
+
+The Coin Toss Game follows this flow:
+
+1. **Funding**: Players receive USDT from the backend
+2. **Token Purchase**: Players exchange USDT for GT using the TokenStore contract
+3. **Match Creation**: The operator creates a match with a stake amount in the PlayGame contract
+4. **Staking**: Both players approve and transfer their GT to the match
+5. **Coin Toss**: The backend randomly selects a winner
+6. **Payout**: The winning player receives both stakes
+
+## Key Code Snippets
+
+### Backend: Match Creation & Staking
+
+```javascript
+// api/index.js - Match creation endpoint
+app.post('/match/start', async (req, res) => {
+  // Create match by operator
+  await sendTx(operator, () =>
+    playGame.connect(operator).createMatch(matchBytes, player1.address, player2.address, stakeAmt)
+  );
+
+  // Player 1 approve + stake
+  await runInQueue(player1, async (startNonce) => {
+    let nonce = startNonce;
+    const a = await gt.connect(player1).approve(process.env.PLAYGAME_ADDRESS, stakeAmt, { nonce });
+    await a.wait();
+    nonce++;
+    const s = await playGame.connect(player1).stake(matchBytes, { nonce });
+    return s.wait();
+  });
+
+  // Player 2 approve + stake
+  await runInQueue(player2, async (startNonce) => {
+    let nonce = startNonce;
+    const a = await gt.connect(player2).approve(process.env.PLAYGAME_ADDRESS, stakeAmt, { nonce });
+    await a.wait();
+    nonce++;
+    const s = await playGame.connect(player2).stake(matchBytes, { nonce });
+    return s.wait();
+  });
+
+  res.json({ success: true, matchId });
+});
+```
+
+### Frontend: Coin Toss Animation
+
+```javascript
+// web/index.js - Coin toss animation and winner display
+async function playMatch() {
+  const stake = document.getElementById('betAmt').value;
+  if (!stake || Number(stake) <= 0) return setStatus('Please select a stake greater than 0.', 3000, 'error');
+
+  // ... match setup code ...
+
+  // Start coin animation
+  setStatus('Flipping the coin...');
+  coinOverlay.style.display = 'flex';
+  coin.style.transform = 'rotateY(0deg)'; // Reset coin
+  coin.classList.add('flipping');
+
+  // Wait for flip animation before getting result
+  await new Promise(resolve => setTimeout(resolve, 3500));
+
+  const playRes = await fetch(`${API}/match/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ matchId })
+  });
+  const playData = await playRes.json();
+
+  // ... display winner ...
+}
+```
+
+## Live Demo Sequence
+
+The live demo shows the complete user journey:
+
+1. **Game Setup**: The backend starts with a Hardhat local node, deploys contracts, and initializes player accounts
+2. **Player Funding**: Players receive USDT from the backend
+3. **Token Purchase**: Players buy GT using their USDT balance
+4. **Match Creation**: A match is created with a stake amount
+5. **Staking**: Both players approve and transfer their GT to the match
+6. **Coin Toss**: The coin toss animation plays, and a winner is randomly selected
+7. **Payout**: The winning player receives both stakes
+
+Watch the video demo: [Demo Video](video/Demo.mkv)
 
 ## Prerequisites
+
 - **Node.js**: v16 or later.
 - **Hardhat**: For compiling and deploying smart contracts.
 - **Ethereum Wallet**: A wallet with testnet ETH (e.g., for Hardhat's local network).
 - **Metamask** (optional): For interacting with the frontend if deployed on a testnet.
-- **Git**: For cloning the repository (if applicable).
-
-## Run:
-To run The Project simply use :
-```bash
-npm run start
-```
 
 ## Setup and Installation
-Follow these steps to set up and run the project locally. 
-```bash
-git clone https://github.com/xoTEMPESTox/WeSee-Sector7-Priyanshu_Sah  
-cd WeSee-Sector7-Priyanshu_Sah 
-npm install 
-npm run start 
- 
-```
-Or Manually Below
 
-### 1. Clone the Repository (if applicable)
+### Quick Start
+
 ```bash
 git clone https://github.com/xoTEMPESTox/WeSee-Sector7-Priyanshu_Sah
 cd WeSee-Sector7-Priyanshu_Sah
-```
-
-### 1.5. Instal Node Modules
-Install project dependencies,env, including Hardhat and its toolbox Automatically
-```bash
 npm install
-```
-To run The Project simply use :
-```bash
 npm run start
 ```
 
-### To debug Node Issues try:
-To setup env and other packages Manually follow this in case of Errors
+### Manual Setup
 
-### 2. Install Node Modules
-Install project dependencies, including Hardhat and its toolbox.
+1. **Clone the Repository**
 
-```bash
-npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
-npm install express cors ethers dotenv
-```
+   ```bash
+   git clone https://github.com/xoTEMPESTox/WeSee-Sector7-Priyanshu_Sah
+   cd WeSee-Sector7-Priyanshu_Sah
+   ```
 
-### 3. Initialize Hardhat
-Create the necessary directories and initialize a Hardhat project.
+2. **Install Dependencies**
 
-```bash
-mkdir contracts
-mkdir scripts
-npx hardhat init
-```
+   ```bash
+   npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
+   npm install express cors ethers dotenv sqlite3 serve
+   ```
 
-When prompted by `npx hardhat init`:
-- Choose "Create a JavaScript project."
-- Accept defaults or customize as needed.
-- Ensure `contracts/` and `scripts/` directories are created.
+3. **Initialize Hardhat**
 
-Move the provided Solidity files (`GameToken.sol`, `TokenStore.sol`, `USDT.sol`, `PlayGame.sol`, `Lock.sol`) to the `contracts/` directory and the deployment script (`deploy.js`) to the `scripts/` directory.
+   ```bash
+   mkdir contracts scripts
+   npx hardhat init
+   ```
 
-### 4. Configure Environment Variables
-Create a `.env` file in the project root with the following variables:
-```env
-RPC_URL=http://127.0.0.1:8545/  # Hardhat local node
-PRIVATE_KEY=<your-operator-private-key>  # Operator wallet private key
-PRIVATE_KEY_P1=<player1-private-key>     # Player 1 wallet private key
-PRIVATE_KEY_P2=<player2-private-key>     # Player 2 wallet private key
-PORT=3000  # Backend port
-```
+   - Choose "Create a JavaScript project."
+   - Move the provided Solidity files to the `contracts/` directory and deployment script to `scripts/`.
 
-**Note**: Replace `<your-operator-private-key>`, `<player1-private-key>`, and `<player2-private-key>` with actual private keys from your Ethereum wallets (e.g., from Hardhat's local accounts). **Never commit `.env` to version control.**
+4. **Configure Environment Variables**
 
-### 5. Deploy Smart Contracts
-Start a Hardhat local node in a terminal:
-```bash
-npx hardhat node
-```
+   Create a `.env` file in the project root:
 
-This runs a local Ethereum network on `http://127.0.0.1:8545/` and provides test accounts with ETH. Keep this terminal running.
+   ```env
+   RPC_URL=http://127.0.0.1:8545/  # Hardhat local node
+   PRIVATE_KEY=<your-operator-private-key>  # Operator wallet private key
+   PRIVATE_KEY_P1=<player1-private-key>     # Player 1 wallet private key
+   PRIVATE_KEY_P2=<player2-private-key>     # Player 2 wallet private key
+   PORT=3000  # Backend port
+   LEADERBOARD_PORT=4000  # Leaderboard service port
+   FRONTEND_PORT=5000  # Frontend port
+   ```
 
-In a new terminal, deploy the contracts:
-```bash
-npx hardhat run scripts/deploy.js --network localhost
-```
+5. **Deploy Smart Contracts**
 
-This deploys:
-- `USDT.sol`: Mock USDT token.
-- `GameToken.sol`: Game Token (GT).
-- `TokenStore.sol`: Contract for buying GT with USDT.
-- `PlayGame.sol`: Game logic for creating, staking, and settling matches.
+   ```bash
+   npx hardhat node
+   npx hardhat run scripts/deploy.js --network localhost
+   ```
 
-The script updates `.env` with deployed contract addresses (`USDT_ADDRESS`, `GAMETOKEN_ADDRESS`, `TOKENSTORE_ADDRESS`, `PLAYGAME_ADDRESS`) and funds Player 1 and Player 2 with 100 USDT each.
+6. **Run the Backend and Leaderboard Service**
 
-### 6. Run the Backend
-In a new terminal, start the backend server:
-```bash
-node api/index.js
-```
+   ```bash
+   node api/index.js
+   node tools/leaderboard.js
+   ```
 
-The backend runs on `http://localhost:3000` (or the port specified in `.env`). It provides API endpoints for:
-- `/config`: Returns contract and player addresses.
-- `/balance/:address`: Fetches USDT and GT balances.
-- `/fund`: Funds a player with USDT.
-- `/purchase`: Buys GT with USDT.
-- `/match/start`: Creates and stakes a match.
-- `/match/play`: Plays the coin toss and commits the result.
-- `/escrow-balance`: Checks GT in the `PlayGame` contract.
+7. **Serve the Frontend**
 
-### 7. Serve the Frontend
-Install the `serve` package globally (if not already installed):
-```bash
-npm install -g serve
-```
+   ```bash
+   npm install -g serve
+   npx serve -l 5000 web
+   ```
 
-In another terminal, serve the frontend from the `web/` directory on port 5000:
-```bash
-npx serve -l 5000 web
-```
+8. **Access the Game**
 
-Place `index.html` (and any associated CSS/JavaScript) in the `web/` directory. The frontend is now accessible at `http://localhost:5000`. The interface displays:
-- Player 1 (crown) and Player 2 (shield) with their USDT and GT balances.
-- Options to fund accounts, buy GT, and play the coin toss.
-- The port (5000) is shown below the "Coin Toss Game" title.
-
-### 8. Verify Setup
-- **Frontend**: Open `http://localhost:5000` in a browser. Check that the UI loads, displays "Served on port: 5000," and shows player logos (crown for Player 1, shield for Player 2).
-- **Backend**: Test API endpoints, e.g., `curl http://localhost:3000/config` to verify contract addresses.
-- **Contracts**: Use Hardhat console (`npx hardhat console --network localhost`) to interact with deployed contracts if needed.
+   Open your browser and go to `http://localhost:5000`
 
 ## Running the Application
-1. **Hardhat Node**: Keep `npx hardhat node` running in one terminal.
-2. **Backend**: Run `node api/index.js` in another terminal (`http://localhost:3000`).
-3. **Frontend**: Run `npx serve -l 5000 web` in a third terminal (`http://localhost:5000`).
-4. **Interact**:
-   - Fund players via the "Fund P1/P2 (USDT)" buttons.
-   - Buy GT using the "Buy Game Tokens" buttons.
-   - Enter a bet amount (GT) and click "Play Coin Toss" to start a match.
-   - The backend randomly selects a winner, and the UI updates balances and the last winner.
+
+1. Start a Hardhat local node:
+   ```bash
+   npx hardhat node
+   ```
+2. Deploy contracts:
+   ```bash
+   npx hardhat run scripts/deploy.js --network localhost
+   ```
+3. Run backend server:
+   ```bash
+   node api/index.js
+   ```
+4. Start the leaderboard service:
+   ```bash
+   node tools/leaderboard.js
+   ```
+5. Serve frontend (in a new terminal):
+   ```bash
+   npx serve -l 5000 web
+   ```
+6. Access the game at `http://localhost:5000`
 
 ## Troubleshooting
-- **Port Conflicts**: Ensure ports 3000 (backend) and 5000 (frontend) are free. Use `lsof -i :3000` or `lsof -i :5000` to check and kill conflicting processes.
-- **CORS Issues**: If the frontend can’t reach the backend, add a `serve.json` in the `web/` directory:
+
+- **Port Conflicts**: Ensure ports 3000 (backend), 4000 (leaderboard), and 5000 (frontend) are free.
+- **CORS Issues**: If frontend can't reach backend, add a `serve.json` in web/ directory:
   ```json
   {
     "port": 5000,
@@ -171,11 +344,15 @@ Place `index.html` (and any associated CSS/JavaScript) in the `web/` directory. 
     }
   }
   ```
-  Then run `npx serve web`.
-- **Nonce Errors**: If `index.js` logs nonce errors, the `runInQueue` function retries automatically. Ensure `RPC_URL` points to the correct Hardhat node.
-- **Contract Deployment**: Verify `.env` has correct private keys and `RPC_URL`. Redeploy if addresses are missing (`npx hardhat run scripts/deploy.js --network localhost`).
+- **Nonce Errors**: Ensure `RPC_URL` points to correct Hardhat node.
+- **Contract Deployment**: Verify `.env` has correct private keys and addresses.
 
 ## Notes
+
 - The `Lock.sol` contract is included but not used in the provided deployment or backend logic. It can be used for time-locked withdrawals if integrated later.
-- Ensure JavaScript in `index.html` (not provided) handles API calls to `http://localhost:3000` for functions like `fundPlayer`, `buyGT`, and `playMatch`.
-- For production, secure private keys, use a testnet/mainnet, and add proper error handling in the frontend.
+- Ensure JavaScript in `index.html` handles API calls to `http://localhost:3000` for functions like `fundPlayer`, `buyGT`, and `playMatch`.
+- For production, secure private keys, use a testnet/mainnet, and add proper error handling.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
